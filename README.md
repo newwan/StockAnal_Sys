@@ -211,15 +211,6 @@ bash scripts/start.sh monitor    # 以监控模式运行（自动重启）
 bash scripts/start.sh logs       # 查看日志
 ```
 
-### Docker启动
-
-```bash
-docker-compose up -d
-```
-可以挂载sqlite_data，在env文件中设置USE_DATABASE=True
-可以使用redis缓存，在env文件中设置USE_REDIS_CACHE=True
-挂载.env文件到本地
-
 ### 主要功能页面
 
 1. **首页** (`/`)
@@ -358,5 +349,13 @@ docker-compose up -d
 
 - 项目有很多问题，基础功能可以运行起来，扩充项目代码全由AI开发，所以进展比较缓慢，请谅解。
 - 如你有好的想法或修复，欢迎提交GitHub Issue
+
+## 👥 Contributors
+
+感谢所有为本项目做出贡献的开发者！
+
+<a href="https://github.com/LargeCupPanda/StockAnal_Sys/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=LargeCupPanda/StockAnal_Sys" />
+</a>
 
 感谢使用智能分析系统！

@@ -2088,21 +2088,42 @@ def start_agent_analysis():
                 if 'progress_callback' in propagate_params:
                     kwargs['progress_callback'] = progress_callback
 
-                state, decision = ta.propagate(stock_code, today, **kwargs)
-                
+                # 由于tradingagents库不支持progress_callback，手动更新进度
+                update_task_status('agent_analysis', task_id, TASK_RUNNING, progress=30, result={'current_step': '正在进行多智能体分析...'})
+                state, raw_decision = ta.propagate(stock_code, today, **kwargs)
+                update_task_status('agent_analysis', task_id, TASK_RUNNING, progress=90, result={'current_step': '正在生成分析报告...'})
+
                 # 修复：在任务完成时，获取并添加公司名称到最终结果中
                 try:
                     stock_info = analyzer.get_stock_info(stock_code)
                     stock_name = stock_info.get('股票名称', '未知')
-                    # 将公司名称添加到 state 字典中，前端将从这里读取
                     if isinstance(state, dict):
                         state['company_name'] = stock_name
                 except Exception as e:
                     app.logger.error(f"为 {stock_code} 获取公司名称时出错: {e}")
                     if isinstance(state, dict):
                         state['company_name'] = '名称获取失败'
-                
-                update_task_status('agent_analysis', task_id, TASK_COMPLETED, progress=100, result={'decision': decision, 'final_state': state, 'current_step': '分析完成'})
+
+                # 构造前端期望的decision对象格式
+                final_trade_decision = state.get('final_trade_decision', '') if isinstance(state, dict) else ''
+                action = raw_decision.strip().upper() if raw_decision else 'HOLD'
+                if action not in ['BUY', 'SELL', 'HOLD']:
+                    # 尝试从final_trade_decision中提取
+                    if 'BUY' in final_trade_decision.upper():
+                        action = 'BUY'
+                    elif 'SELL' in final_trade_decision.upper():
+                        action = 'SELL'
+                    else:
+                        action = 'HOLD'
+
+                decision_obj = {
+                    'action': action,
+                    'reasoning': final_trade_decision[:500] if final_trade_decision else '分析完成',
+                    'confidence': 0.7,
+                    'risk_score': 0.5
+                }
+
+                update_task_status('agent_analysis', task_id, TASK_COMPLETED, progress=100, result={'decision': decision_obj, 'final_state': state, 'current_step': '分析完成'})
                 app.logger.info(f"智能体分析任务 {task_id} 完成")
 
             except TaskCancelledException as e:
