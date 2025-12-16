@@ -11,6 +11,9 @@ class EtfAnalyzer:
         self.analysis_result = {}
         self.hist_df = None # 用于存储历史数据以供后续分析使用
         self.stock_analyzer = stock_analyzer_instance # 复用StockAnalyzer实例
+        # 初始化统一数据层
+        from app.core.data_provider import get_data_provider
+        self.data_provider = get_data_provider()
 
     def run_analysis(self):
         """

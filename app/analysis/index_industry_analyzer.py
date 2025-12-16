@@ -9,6 +9,9 @@ class IndexIndustryAnalyzer:
     def __init__(self, analyzer):
         self.analyzer = analyzer
         self.data_cache = {}
+        # 初始化统一数据层
+        from app.core.data_provider import get_data_provider
+        self.data_provider = get_data_provider()
 
     def analyze_index(self, index_code, limit=30):
         """分析指数整体情况"""
@@ -20,33 +23,19 @@ class IndexIndustryAnalyzer:
                 if (pd.Timestamp.now() - cache_time).total_seconds() < 3600:
                     return cached_result
 
-            # 获取指数成分股
-            if index_code == '000300':
-                # 沪深300成分股
-                stocks = ak.index_stock_cons_weight_csindex(symbol="000300")
-                index_name = "沪深300"
-            elif index_code == '000905':
-                # 中证500成分股
-                stocks = ak.index_stock_cons_weight_csindex(symbol="000905")
-                index_name = "中证500"
-            elif index_code == '000852':
-                # 中证1000成分股
-                stocks = ak.index_stock_cons_weight_csindex(symbol="000852")
-                index_name = "中证1000"
-            elif index_code == '000001':
-                # 上证指数
-                stocks = ak.index_stock_cons_weight_csindex(symbol="000001")
-                index_name = "上证指数"
-            else:
+            # 获取指数成分股 - 使用DataProvider统一数据层
+            index_names = {
+                '000300': "沪深300", '000905': "中证500",
+                '000852': "中证1000", '000001': "上证指数"
+            }
+            if index_code not in index_names:
                 return {"error": "不支持的指数代码"}
 
-            # 提取股票代码列表和权重
-            stock_list = []
-            if '成分券代码' in stocks.columns:
-                stock_list = stocks['成分券代码'].tolist()
-                weights = stocks['权重(%)'].tolist() if '权重(%)' in stocks.columns else [1] * len(stock_list)
-            else:
+            index_name = index_names[index_code]
+            stock_list = self.data_provider.get_index_stocks(index_code)
+            if not stock_list:
                 return {"error": "获取指数成分股失败"}
+            weights = [1] * len(stock_list)  # DataProvider返回的是纯列表，无权重
 
             # 限制分析的股票数量以提高性能
             if limit and len(stock_list) > limit:
@@ -141,12 +130,8 @@ class IndexIndustryAnalyzer:
                 if (pd.Timestamp.now() - cache_time).total_seconds() < 3600:
                     return cached_result
 
-            # 获取行业成分股
-            stocks = ak.stock_board_industry_cons_em(symbol=industry)
-
-            # 提取股票代码列表
-            stock_list = stocks['代码'].tolist() if '代码' in stocks.columns else []
-
+            # 获取行业成分股 - 使用DataProvider统一数据层
+            stock_list = self.data_provider.get_industry_stocks(industry)
             if not stock_list:
                 return {"error": "获取行业成分股失败"}
 
@@ -224,10 +209,10 @@ class IndexIndustryAnalyzer:
             return {"error": f"分析行业时出错: {str(e)}"}
 
     def compare_industries(self, limit=10):
-        """比较不同行业的表现"""
+        """比较不同行业的表现 - 使用DataProvider统一数据层"""
         try:
             # 获取行业板块数据
-            industry_data = ak.stock_board_industry_name_em()
+            industry_data = self.data_provider.get_industry_list()
 
             # 提取行业名称列表
             industries = industry_data['板块名称'].tolist() if '板块名称' in industry_data.columns else []

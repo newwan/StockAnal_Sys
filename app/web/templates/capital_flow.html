@@ -285,6 +285,7 @@
 
     // 加载概念成分股
     function loadConceptStocks(sector) {
+        console.log('loadConceptStocks called with sector:', sector);
         $('#loading-panel').show();
         $('#concept-stocks-panel').hide();
 
@@ -292,11 +293,17 @@
             url: `/api/sector_stocks?sector=${encodeURIComponent(sector)}`,
             type: 'GET',
             success: function(response) {
+                console.log('sector_stocks response:', response.length, 'items');
                 renderConceptStocks(response, sector);
                 $('#loading-panel').hide();
                 $('#concept-stocks-panel').show();
+                // 滚动到成分股面板
+                $('html, body').animate({
+                    scrollTop: $('#concept-stocks-panel').offset().top - 100
+                }, 300);
             },
             error: function(xhr, status, error) {
+                console.error('sector_stocks error:', error);
                 $('#loading-panel').hide();
                 showError('获取概念成分股数据失败: ' + error);
             }

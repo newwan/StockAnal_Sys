@@ -1274,30 +1274,18 @@ def cancel_scan(task_id):
 
 @app.route('/api/index_stocks', methods=['GET'])
 def get_index_stocks():
-    """获取指数成分股"""
+    """获取指数成分股 - 使用DataProvider统一数据层"""
     try:
-        import akshare as ak
+        from app.core.data_provider import get_data_provider
+        data_provider = get_data_provider()
         index_code = request.args.get('index_code', '000300')  # 默认沪深300
 
         # 获取指数成分股
         app.logger.info(f"获取指数 {index_code} 成分股")
-        if index_code == '000300':
-            # 沪深300成分股
-            stocks = ak.index_stock_cons_weight_csindex(symbol="000300")
-        elif index_code == '000905':
-            # 中证500成分股
-            stocks = ak.index_stock_cons_weight_csindex(symbol="000905")
-        elif index_code == '000852':
-            # 中证1000成分股
-            stocks = ak.index_stock_cons_weight_csindex(symbol="000852")
-        elif index_code == '000001':
-            # 上证指数
-            stocks = ak.index_stock_cons_weight_csindex(symbol="000001")
-        else:
+        if index_code not in ['000300', '000905', '000852', '000001']:
             return jsonify({'error': '不支持的指数代码'}), 400
 
-        # 提取股票代码列表
-        stock_list = stocks['成分券代码'].tolist() if '成分券代码' in stocks.columns else []
+        stock_list = data_provider.get_index_stocks(index_code)
         app.logger.info(f"找到 {len(stock_list)} 只成分股")
 
         return jsonify({'stock_list': stock_list})
@@ -1308,9 +1296,10 @@ def get_index_stocks():
 
 @app.route('/api/industry_stocks', methods=['GET'])
 def get_industry_stocks():
-    """获取行业成分股"""
+    """获取行业成分股 - 使用DataProvider统一数据层"""
     try:
-        import akshare as ak
+        from app.core.data_provider import get_data_provider
+        data_provider = get_data_provider()
         industry = request.args.get('industry', '')
 
         if not industry:
@@ -1318,10 +1307,7 @@ def get_industry_stocks():
 
         # 获取行业成分股
         app.logger.info(f"获取 {industry} 行业成分股")
-        stocks = ak.stock_board_industry_cons_em(symbol=industry)
-
-        # 提取股票代码列表
-        stock_list = stocks['代码'].tolist() if '代码' in stocks.columns else []
+        stock_list = data_provider.get_industry_stocks(industry)
         app.logger.info(f"找到 {len(stock_list)} 只 {industry} 行业股票")
 
         return jsonify({'stock_list': stock_list})
@@ -1333,12 +1319,13 @@ def get_industry_stocks():
 # Issue #29: 按板块获取股票列表（科创板/创业板/北交所等）
 @app.route('/api/board_stocks', methods=['GET'])
 def get_board_stocks():
-    """获取指定板块的股票列表（使用指数成分股接口，更稳定）"""
+    """获取指定板块的股票列表 - 使用DataProvider统一数据层"""
     try:
-        import akshare as ak
+        from app.core.data_provider import get_data_provider
+        data_provider = get_data_provider()
         board = request.args.get('board', 'hs300')
 
-        # 使用指数成分股接口，比实时行情接口更稳定
+        # 板块映射
         board_map = {
             'hs300': ('000300', '沪深300'),
             'zz500': ('000905', '中证500'),
@@ -1354,8 +1341,7 @@ def get_board_stocks():
         index_code, index_name = board_map[board]
         app.logger.info(f"获取 {index_name}({index_code}) 成分股列表")
 
-        df = ak.index_stock_cons_weight_csindex(symbol=index_code)
-        stock_list = df['成分券代码'].tolist() if '成分券代码' in df.columns else []
+        stock_list = data_provider.get_index_stocks(index_code)
         app.logger.info(f"找到 {len(stock_list)} 只 {index_name} 成分股")
 
         return jsonify({'stock_list': stock_list, 'count': len(stock_list), 'index_name': index_name})

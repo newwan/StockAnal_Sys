@@ -65,10 +65,12 @@ class StockAnalyzer:
 
         # JSON匹配标志
         self.json_match_flag = True
-    def get_stock_data(self, stock_code, market_type='A', start_date=None, end_date=None):
-        """获取股票数据 - 增强版，具备更强的容错能力"""
-        import akshare as ak
 
+        # 初始化统一数据层
+        from app.core.data_provider import get_data_provider
+        self.data_provider = get_data_provider()
+    def get_stock_data(self, stock_code, market_type='A', start_date=None, end_date=None):
+        """获取股票数据 - 使用DataProvider统一数据层，支持多数据源故障转移"""
         self.logger.info(f"开始获取股票 {stock_code} 数据，市场类型: {market_type}")
 
         cache_key = f"{stock_code}_{market_type}_{start_date}_{end_date}_price"
@@ -83,22 +85,27 @@ class StockAnalyzer:
         try:
             df = None
             if market_type == 'A':
-                df = ak.stock_zh_a_hist(symbol=stock_code, start_date=start_date, end_date=end_date, adjust="qfq")
+                # 使用DataProvider获取数据（自动故障转移）
+                df = self.data_provider.get_stock_history(stock_code, start_date, end_date)
             elif market_type == 'HK':
+                # 港股暂时保留akshare直接调用（DataProvider暂不支持）
+                import akshare as ak
                 df = ak.stock_hk_daily(symbol=stock_code, adjust="qfq")
             elif market_type == 'US':
+                # 美股暂时保留akshare直接调用
+                import akshare as ak
                 df = ak.stock_us_hist(symbol=stock_code, start_date=start_date, end_date=end_date, adjust="qfq")
             else:
                 raise ValueError(f"不支持的市场类型: {market_type}")
 
             if df is None or df.empty:
-                raise ValueError("akshare返回了空的DataFrame")
+                raise ValueError("数据源返回了空的DataFrame")
 
-            # 1. 标准化列名
+            # 1. 标准化列名（DataProvider已统一，但保留兼容处理）
             rename_map = {
                 "日期": "date", "开盘": "open", "收盘": "close", "最高": "high",
                 "最低": "low", "成交量": "volume", "成交额": "amount",
-                "trade_date": "date" # 兼容不同命名
+                "trade_date": "date"
             }
             df.rename(columns=rename_map, inplace=True)
 
@@ -1281,59 +1288,24 @@ class StockAnalyzer:
     # ======================== 新增功能 ========================#
 
     def get_stock_info(self, stock_code):
-        """获取股票基本信息"""
-        import akshare as ak
-
+        """获取股票基本信息 - 使用DataProvider统一数据层"""
         cache_key = f"{stock_code}_info"
         if cache_key in self.data_cache:
             return self.data_cache[cache_key]
 
         try:
-            # 获取A股股票基本信息
-            stock_info = ak.stock_individual_info_em(symbol=stock_code)
-
-            # 修改：使用列名而不是索引访问数据
-            info_dict = {}
-            for _, row in stock_info.iterrows():
-                # 使用iloc安全地获取数据
-                if len(row) >= 2:  # 确保有至少两列
-                    info_dict[row.iloc[0]] = row.iloc[1]
-
-            # 获取股票名称
-            try:
-                stock_name_df = ak.stock_info_a_code_name()
-                
-                # 标准化列名
-                rename_map = {
-                    "代码": "code", "名称": "name", "symbol": "code", "股票代码": "code", "stock_code": "code",
-                    "股票名称": "name", "stock_name": "name"
-                }
-                stock_name_df.rename(columns=lambda c: rename_map.get(c, c), inplace=True)
-
-                if 'code' in stock_name_df.columns and 'name' in stock_name_df.columns:
-                    name_series = stock_name_df.set_index('code')['name']
-                    name = name_series.get(str(stock_code))
-                    if not name:
-                         self.logger.warning(f"无法从 stock_info_a_code_name 找到股票代码 {stock_code} 的名称")
-                         name = "未知"
-                else:
-                    self.logger.warning(f"stock_info_a_code_name 返回的DataFrame缺少 'code' 或 'name' 列: {stock_name_df.columns.tolist()}")
-                    name = "未知"
-
-            except Exception as e:
-                self.logger.error(f"获取股票名称时出错: {str(e)}")
-                name = "未知"
-
-            info_dict['股票名称'] = name
+            # 使用DataProvider获取股票信息（自动故障转移）
+            info_dict = self.data_provider.get_stock_info(stock_code)
 
             # 确保基本字段存在
+            if '股票名称' not in info_dict:
+                info_dict['股票名称'] = info_dict.get('name', '未知')
             if '行业' not in info_dict:
-                info_dict['行业'] = "未知"
+                info_dict['行业'] = info_dict.get('industry', '未知')
             if '地区' not in info_dict:
                 info_dict['地区'] = "未知"
 
-            # 增加更多日志来调试问题
-            self.logger.info(f"获取到股票信息: 名称={name}, 行业={info_dict.get('行业', '未知')}")
+            self.logger.info(f"获取到股票信息: 名称={info_dict.get('股票名称', '未知')}, 行业={info_dict.get('行业', '未知')}")
 
             self.data_cache[cache_key] = info_dict
             return info_dict

@@ -54,9 +54,10 @@ class ScenarioPredictor:
             # 使用AI生成各情景的分析
             if self.openai_api_key:
                 ai_analysis = self._generate_ai_analysis(stock_code, stock_info, df, scenarios)
+                logging.info(f"AI分析返回: {list(ai_analysis.keys()) if ai_analysis else 'None'}")
                 scenarios.update(ai_analysis)
+                logging.info(f"合并后optimistic_analysis: {scenarios.get('optimistic_analysis', 'N/A')[:50]}")
 
-            # logging.info(f"返回前的情景预测：{scenarios}")
             return scenarios
         except Exception as e:
             # logging.info(f"生成情景预测出错: {str(e)}")
@@ -183,42 +184,36 @@ class ScenarioPredictor:
             response = self.client.chat.completions.create(
                 model=self.openai_model,
                 messages=[
-                    {"role": "system", "content": "你是专业的股票分析师，擅长技术分析和情景预测。"},
+                    {"role": "system", "content": "你是专业的股票分析师。请直接返回JSON格式，不要使用代码块。"},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.7
+                temperature=0.7,
+                max_tokens=4096
             )
     
             # 解析AI回复
             import json
+            import re
+            content = response.choices[0].message.content.strip()
+            logging.info(f"AI原始返回长度: {len(content)}, 内容: {content[:200]}")
+
+            # 尝试提取JSON（支持```json代码块或直接JSON）
+            json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', content)
+            if json_match:
+                content = json_match.group(1).strip()
+                logging.info(f"从代码块提取JSON: {content[:100]}")
+
             try:
-                analysis = json.loads(response.choices[0].message.content)
-                # 确保返回的JSON包含所需的所有字段
+                analysis = json.loads(content)
+                logging.info(f"JSON解析成功: {list(analysis.keys())}")
                 if "risk_factors" not in analysis:
                     analysis["risk_factors"] = self._get_default_risk_factors()
                 if "opportunity_factors" not in analysis:
                     analysis["opportunity_factors"] = self._get_default_opportunity_factors()
                 return analysis
-            except:
-                # 如果解析失败，尝试从文本中提取JSON
-                import re
-                json_match = re.search(r'```json\s*([\s\S]*?)\s*```', response.choices[0].message.content)
-                if json_match:
-                    json_str = json_match.group(1)
-                    try:
-                        analysis = json.loads(json_str)
-                        # 确保包含所需的所有字段
-                        if "risk_factors" not in analysis:
-                            analysis["risk_factors"] = self._get_default_risk_factors()
-                        if "opportunity_factors" not in analysis:
-                            analysis["opportunity_factors"] = self._get_default_opportunity_factors()
-                        return analysis
-                    except:
-                        # JSON解析失败时返回默认值
-                        return self._get_default_analysis()
-                else:
-                    # 无法提取JSON时返回默认值
-                    return self._get_default_analysis()
+            except Exception as e:
+                logging.error(f"JSON解析失败: {e}, 内容: {content[:200]}")
+                return self._get_default_analysis()
         except Exception as e:
             print(f"生成AI分析出错: {str(e)}")
             return self._get_default_analysis()

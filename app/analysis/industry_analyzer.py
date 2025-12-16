@@ -25,6 +25,10 @@ class IndustryAnalyzer:
                             format='%(asctime)s - %(levelname)s - %(message)s')
         self.logger = logging.getLogger(__name__)
 
+        # 初始化统一数据层
+        from app.core.data_provider import get_data_provider
+        self.data_provider = get_data_provider()
+
     def get_industry_fund_flow(self, symbol="即时"):
         """获取行业资金流向数据"""
         try:
@@ -140,12 +144,12 @@ class IndustryAnalyzer:
             return "0.00"
 
     def _get_industry_code(self, industry_name):
-        """获取行业名称对应的板块代码"""
+        """获取行业名称对应的板块代码 - 使用DataProvider统一数据层"""
         try:
             # 如果已经缓存了行业代码映射，直接使用
             if not self.industry_code_map:
-                # 获取东方财富行业板块名称及代码
-                industry_list = ak.stock_board_industry_name_em()
+                # 使用DataProvider获取行业板块列表
+                industry_list = self.data_provider.get_industry_list()
 
                 # 创建行业名称到代码的映射
                 for _, row in industry_list.iterrows():
@@ -195,20 +199,18 @@ class IndustryAnalyzer:
 
             result = []
             try:
-                # 1. 首先尝试直接使用行业名称
-                try:
-                    stocks = ak.stock_board_industry_cons_em(symbol=industry)
-                    self.logger.info(f"使用行业名称 '{industry}' 成功获取成分股")
-                except Exception as direct_error:
-                    self.logger.warning(f"使用行业名称获取成分股失败: {str(direct_error)}")
-                    # 2. 尝试使用行业代码
+                # 使用DataProvider获取行业成分股
+                stock_codes = self.data_provider.get_industry_stocks(industry)
+                if not stock_codes:
+                    # 尝试使用行业代码
                     industry_code = self._get_industry_code(industry)
                     if industry_code:
-                        self.logger.info(f"尝试使用行业代码 {industry_code} 获取成分股")
-                        stocks = ak.stock_board_industry_cons_em(symbol=industry_code)
-                    else:
-                        # 如果无法获取行业代码，抛出异常，进入模拟数据生成
-                        raise ValueError(f"无法找到行业 '{industry}' 对应的代码")
+                        stock_codes = self.data_provider.get_industry_stocks(industry_code)
+                if not stock_codes:
+                    raise ValueError(f"无法获取行业 '{industry}' 成分股")
+
+                # 转换为DataFrame格式以兼容后续代码
+                stocks = pd.DataFrame({'代码': stock_codes})
 
                 # 打印列名以便调试
                 self.logger.info(f"行业成分股数据列名: {stocks.columns.tolist()}")
@@ -443,10 +445,10 @@ class IndustryAnalyzer:
             return "无法生成投资建议"
 
     def compare_industries(self, limit=10):
-        """比较不同行业的表现"""
+        """比较不同行业的表现 - 使用DataProvider统一数据层"""
         try:
-            # 获取行业板块数据
-            industry_data = ak.stock_board_industry_name_em()
+            # 使用DataProvider获取行业板块数据
+            industry_data = self.data_provider.get_industry_list()
 
             # 提取行业名称列表
             industries = industry_data['板块名称'].tolist() if '板块名称' in industry_data.columns else []

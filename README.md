@@ -1,6 +1,6 @@
 # 智能分析系统
 
-![版本](https://img.shields.io/badge/版本-2.1.1-blue.svg)
+![版本](https://img.shields.io/badge/版本-2.1.2-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.7+-green.svg)
 ![Flask](https://img.shields.io/badge/Flask-2.0+-red.svg)
 ![AKShare](https://img.shields.io/badge/AKShare-1.0.0+-orange.svg)
@@ -296,39 +296,12 @@ bash scripts/start.sh logs       # 查看日志
 
 ## 📋 版本历史
 
-### v2.1.1 (当前版本)
-- **Issue #34 修复**: TradingAgentsGraph.propagate()参数兼容性问题，使用inspect动态检查方法签名
-- **Issue #29 新增**: 市场扫描按板块扫描功能（科创50/100、北证50），使用指数成分股接口增强稳定性
-- **Issue #31 新增**: 智能问答历史记录功能，LocalStorage保存查询记录和对话内容
-- 新增板块股票API：`/api/board_stocks`
+### v2.1.2 (当前版本)
+- 实现数据接口双层冗余架构（akshare内部冗余 + baostock跨库备用）
+- 新增DataProvider统一数据层和FallbackManager故障转移管理器
+- 修复情景预测AI分析JSON解析问题
 
-### v2.1.0
-- 重构项目为模块化架构（app/analysis、app/web、app/core）
-- 新增ETF分析功能，支持ETF基金评估和持仓分析
-- 新增Agent智能分析功能，基于AI Agent的深度分析
-- 新增认证中间件，增强系统安全性
-- 优化缓存机制，增加市场收盘时自动清理缓存
-- 增强错误处理和系统稳定性
-- 新增智能问答功能，支持联网搜索实时信息和多轮对话
-- 优化情景预测模块，提高预测精度和可视化效果
-- 新增行业分析功能
-- 改进首页为财经门户风格，实时显示财经要闻与舆情热点
-- 增加全球主要市场状态实时监控
-- 优化服务器超时处理
-- 改进UI交互体验
-
-### v2.0.0
-- 增加多维度分析能力
-- 整合AI API实现AI增强分析
-- 新增投资组合管理功能
-- 重构用户界面，添加交互式图表
-- 优化技术分析和评分系统
-
-### v1.0.0 (初始版本)
-- 基础股票分析功能
-- 技术指标计算
-- 简单评分系统
-- 基础Web界面
+查看完整更新记录：[CHANGELOG.md](./docs/CHANGELOG.md)
 
 ## 🔄 扩展开发
 

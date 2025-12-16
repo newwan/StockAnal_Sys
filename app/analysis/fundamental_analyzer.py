@@ -15,16 +15,24 @@ class FundamentalAnalyzer:
     def __init__(self):
         """初始化基础分析类"""
         self.data_cache = {}
+        # 初始化统一数据层
+        from app.core.data_provider import get_data_provider
+        self.data_provider = get_data_provider()
 
     def get_financial_indicators(self, stock_code, progress_callback=None):
-        """获取财务指标数据"""
+        """获取财务指标数据 - 使用DataProvider统一数据层"""
         if progress_callback:
             progress_callback(5, "正在获取财务指标...")
         try:
-            # 获取基本财务指标
-            financial_data = ak.stock_financial_analysis_indicator(symbol=stock_code,start_year="2022")
+            # 使用DataProvider获取财务数据（自动故障转移）
+            fin_result = self.data_provider.get_financial_data(stock_code)
+            financial_data = fin_result.get('indicator', [])
+            if isinstance(financial_data, list) and len(financial_data) > 0:
+                financial_data = pd.DataFrame(financial_data)
+            else:
+                financial_data = pd.DataFrame()
 
-            # 获取最新估值指标
+            # 获取最新估值指标（暂保留akshare直接调用，DataProvider暂不支持）
             valuation = ak.stock_value_em(symbol=stock_code)
 
             # 整合数据

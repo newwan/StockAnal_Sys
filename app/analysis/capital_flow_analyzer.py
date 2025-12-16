@@ -16,6 +16,10 @@ class CapitalFlowAnalyzer:
                             format='%(asctime)s - %(levelname)s - %(message)s')
         self.logger = logging.getLogger(__name__)
 
+        # 初始化统一数据层
+        from app.core.data_provider import get_data_provider
+        self.data_provider = get_data_provider()
+
     def get_concept_fund_flow(self, period="10日排行"):
         """获取概念/行业资金流向数据"""
         try:
@@ -207,46 +211,15 @@ class CapitalFlowAnalyzer:
                 if (datetime.now() - cache_time).total_seconds() < 3600:
                     return cached_data
 
-            # 尝试从akshare获取数据
-            try:
-                # For industry sectors (using 东方财富 interface)
-                stocks = ak.stock_board_industry_cons_em(symbol=sector)
-
-                # 提取股票列表
-                if not stocks.empty and '代码' in stocks.columns:
-                    result = []
-                    for _, row in stocks.iterrows():
-                        try:
-                            item = {
-                                "code": row.get("代码", ""),
-                                "name": row.get("名称", ""),
-                                "price": float(row.get("最新价", 0)),
-                                "change_percent": float(row.get("涨跌幅", 0)) if "涨跌幅" in row else 0,
-                                "main_net_inflow": 0,  # We'll get this data separately if needed
-                                "main_net_inflow_percent": 0  # We'll get this data separately if needed
-                            }
-                            result.append(item)
-                        except Exception as e:
-                            # self.logger.warning(f"Error processing row in sector stocks: {str(e)}")
-                            continue
-
-                    # 缓存结果
-                    self.data_cache[cache_key] = (datetime.now(), result)
-                    return result
-            except Exception as e:
-                self.logger.warning(f"Failed to get sector stocks from API: {str(e)}")
-                # 降级到模拟数据
-
-            # 如果到达这里，说明无法从API获取数据，返回模拟数据
-            result = self._generate_mock_sector_stocks(sector)
-            self.data_cache[cache_key] = (datetime.now(), result)
-            return result
+            # 使用DataProvider获取概念/行业成分股详细信息
+            result = self.data_provider.get_concept_stocks_detail(sector)
+            if result:
+                self.data_cache[cache_key] = (datetime.now(), result)
+            return result  # 没数据就返回空，不用mock
 
         except Exception as e:
             self.logger.error(f"Error getting sector stocks: {str(e)}")
-            self.logger.error(traceback.format_exc())
-            # 如果API调用失败则返回模拟数据
-            return self._generate_mock_sector_stocks(sector)
+            return []  # 出错返回空数组，不用mock
 
     def calculate_capital_flow_score(self, stock_code, market_type=""):
         """计算股票资金流向评分"""
@@ -559,30 +532,3 @@ class CapitalFlowAnalyzer:
         }
 
         return result
-
-    def _generate_mock_sector_stocks(self, sector):
-        """生成模拟行业股票数据"""
-        # self.logger.warning(f"Generating mock sector stocks for: {sector}")
-
-        # 要生成的股票数量
-        num_stocks = np.random.randint(20, 50)
-
-        result = []
-        for i in range(num_stocks):
-            prefix = "6" if np.random.random() > 0.5 else "0"
-            stock_code = prefix + str(100000 + i).zfill(5)[-5:]
-
-            change_percent = round(np.random.uniform(-5, 5), 2)
-
-            item = {
-                "code": stock_code,
-                "name": f"{sector}股票{i + 1}",
-                "price": round(np.random.uniform(10, 100), 2),
-                "change_percent": change_percent,
-                "main_net_inflow": round(np.random.uniform(-1e6, 1e6), 2),
-                "main_net_inflow_percent": round(np.random.uniform(-5, 5), 2)
-            }
-            result.append(item)
-
-        # 按主力净流入降序排序
-        return sorted(result, key=lambda x: x["main_net_inflow"], reverse=True)
